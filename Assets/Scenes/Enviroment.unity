@@ -670,14 +670,14 @@ MonoBehaviour:
   heightCorrectionStrength: 5
   attractionStrength: 5
   repulsionStrength: 300
-  minSafeDistance: 8
+  minSafeDistance: 15
   lidarAngles:
   - -80
   - -40
   - 0
   - 40
   - 80
-  lidarMaxRange: 12
+  lidarMaxRange: 20
   wallFollowStrength: 8
   stuckThreshold: 1.5
   stuckDistance: 0.5
@@ -685,9 +685,9 @@ MonoBehaviour:
   velocitySmoothing: 0.08
   rotationSmoothing: 3
   lidarSmoothing: 0.15
-  slowDownRadius: 10
+  slowDownRadius: 25
   minSpeedNearObstacle: 0.5
-  maxRepulsionForce: 10
+  maxRepulsionForce: 5
 --- !u!54 &566597287
 Rigidbody:
   m_ObjectHideFlags: 0
