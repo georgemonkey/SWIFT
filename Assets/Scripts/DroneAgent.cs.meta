@@ -1,11 +1,244 @@
-fileFormatVersion: 2
-guid: a017174265de34d239a7fdc30c8fb9f9
-MonoImporter:
-  externalObjects: {}
-  serializedVersion: 2
-  defaultReferences: []
-  executionOrder: 0
-  icon: {instanceID: 0}
-  userData: 
-  assetBundleName: 
-  assetBundleVariant: 
+using UnityEngine;
+using System.Collections.Generic;
+
+public class DroneAgent: MonoBehaviour
+{
+    [Header("Target Settings")]
+    public Transform targetZone; // Drag your "Finish" zone here
+    
+    [Header("Movement Settings")]
+    public float maxSpeed = 5f;
+    public float maxForce = 10f;
+    
+    [Header("Potential Field Settings")]
+    public float attractiveGain = 2.0f;      // How strongly attracted to target
+    public float repulsiveGain = 5.0f;       // How strongly repelled by obstacles
+    public float obstacleDetectionRadius = 5f; // How far to detect obstacles
+    public float safeDistance = 2.0f;        // Stay this far from obstacles
+    
+    [Header("Debug Visualization")]
+    public bool showDebugLines = true;
+    public Color attractiveForceColor = Color.green;
+    public Color repulsiveForceColor = Color.red;
+    public Color totalForceColor = Color.blue;
+    
+    private Rigidbody rb;
+    private Vector3 velocity;
+    private bool reachedTarget = false;
+    
+    void Start()
+    {
+        rb = GetComponent<Rigidbody>();
+        
+        if (rb == null)
+        {
+            rb = gameObject.AddComponent<Rigidbody>();
+            rb.useGravity = false; // Drone floats
+            rb.drag = 1f;
+        }
+        
+        velocity = Vector3.zero;
+        
+        // Find target if not assigned
+        if (targetZone == null)
+        {
+            GameObject target = GameObject.FindGameObjectWithTag("Finish");
+            if (target != null)
+            {
+                targetZone = target.transform;
+                Debug.Log("Found target zone: " + target.name);
+            }
+            else
+            {
+                Debug.LogError("No target with 'Finish' tag found! Please assign targetZone or tag your target.");
+            }
+        }
+    }
+    
+    void FixedUpdate()
+    {
+        if (targetZone == null || reachedTarget)
+            return;
+        
+        // Calculate APF forces
+        Vector3 attractiveForce = CalculateAttractiveForce();
+        Vector3 repulsiveForce = CalculateRepulsiveForce();
+        Vector3 totalForce = attractiveForce + repulsiveForce;
+        
+        // Apply force to create acceleration
+        Vector3 acceleration = totalForce / rb.mass;
+        
+        // Update velocity
+        velocity += acceleration * Time.fixedDeltaTime;
+        
+        // Limit velocity to max speed
+        if (velocity.magnitude > maxSpeed)
+        {
+            velocity = velocity.normalized * maxSpeed;
+        }
+        
+        // Move the drone
+        rb.velocity = velocity;
+        
+        // Rotate to face movement direction
+        if (velocity.magnitude > 0.1f)
+        {
+            Quaternion targetRotation = Quaternion.LookRotation(velocity);
+            transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, Time.fixedDeltaTime * 5f);
+        }
+        
+        // Debug visualization
+        if (showDebugLines)
+        {
+            Debug.DrawRay(transform.position, attractiveForce, attractiveForceColor);
+            Debug.DrawRay(transform.position, repulsiveForce, repulsiveForceColor);
+            Debug.DrawRay(transform.position, totalForce, totalForceColor);
+        }
+        
+        // Check if reached target
+        float distanceToTarget = Vector3.Distance(transform.position, targetZone.position);
+        if (distanceToTarget < 2f)
+        {
+            reachedTarget = true;
+            rb.velocity = Vector3.zero;
+            Debug.Log("Drone reached target!");
+        }
+    }
+    
+    /// <summary>
+    /// Calculate attractive force pulling drone toward target
+    /// Formula: F_att = attractiveGain * (target - current_position)
+    /// </summary>
+    Vector3 CalculateAttractiveForce()
+    {
+        // Direction from drone to target
+        Vector3 direction = targetZone.position - transform.position;
+        float distance = direction.magnitude;
+        
+        if (distance < 0.1f)
+            return Vector3.zero;
+        
+        // Normalize and scale by attractive gain
+        Vector3 attractiveForce = direction.normalized * attractiveGain;
+        
+        // Optional: Scale by distance (closer = weaker pull)
+        // This prevents oscillation near the target
+        if (distance < 5f)
+        {
+            attractiveForce *= (distance / 5f);
+        }
+        
+        return attractiveForce;
+    }
+    
+    /// <summary>
+    /// Calculate repulsive force pushing drone away from obstacles
+    /// Uses TAGS instead of layers to find obstacles
+    /// Formula: F_rep = repulsiveGain * (1/distance - 1/safeDistance) * direction_away
+    /// </summary>
+    Vector3 CalculateRepulsiveForce()
+    {
+        Vector3 totalRepulsiveForce = Vector3.zero;
+        
+        // Find all GameObjects with "Obstacles" tag
+        GameObject[] obstacleObjects = GameObject.FindGameObjectsWithTag("Obstacles");
+        
+        foreach (GameObject obstacleObj in obstacleObjects)
+        {
+            // Don't repel from self
+            if (obstacleObj == gameObject)
+                continue;
+            
+            // Get the collider of the obstacle
+            Collider obstacleCollider = obstacleObj.GetComponent<Collider>();
+            
+            if (obstacleCollider == null)
+            {
+                // If no collider, use object position directly
+                Vector3 directionAway = transform.position - obstacleObj.transform.position;
+                float distance = directionAway.magnitude;
+                
+                // Only apply force if within detection radius
+                if (distance < obstacleDetectionRadius && distance > 0.1f)
+                {
+                    // Normalize direction
+                    directionAway.Normalize();
+                    
+                    // Calculate repulsive force (stronger when closer)
+                    if (distance < safeDistance)
+                    {
+                        float forceMagnitude = repulsiveGain * (1.0f / distance - 1.0f / safeDistance) / (distance * distance);
+                        Vector3 repulsiveForce = directionAway * forceMagnitude;
+                        totalRepulsiveForce += repulsiveForce;
+                        
+                        // Debug visualization
+                        if (showDebugLines)
+                        {
+                            Debug.DrawLine(transform.position, obstacleObj.transform.position, Color.yellow);
+                        }
+                    }
+                }
+            }
+            else
+            {
+                // Use closest point on collider for more accurate distance
+                Vector3 closestPoint = obstacleCollider.ClosestPoint(transform.position);
+                Vector3 directionAway = transform.position - closestPoint;
+                float distance = directionAway.magnitude;
+                
+                // Only apply force if within detection radius
+                if (distance < obstacleDetectionRadius && distance > 0.1f)
+                {
+                    // Normalize direction
+                    directionAway.Normalize();
+                    
+                    // Calculate repulsive force (stronger when closer)
+                    if (distance < safeDistance)
+                    {
+                        float forceMagnitude = repulsiveGain * (1.0f / distance - 1.0f / safeDistance) / (distance * distance);
+                        Vector3 repulsiveForce = directionAway * forceMagnitude;
+                        totalRepulsiveForce += repulsiveForce;
+                        
+                        // Debug visualization
+                        if (showDebugLines)
+                        {
+                            Debug.DrawLine(transform.position, closestPoint, Color.yellow);
+                        }
+                    }
+                }
+            }
+        }
+        
+        return totalRepulsiveForce;
+    }
+    
+    /// <summary>
+    /// Reset the drone to try again
+    /// </summary>
+    public void ResetDrone(Vector3 startPosition)
+    {
+        transform.position = startPosition;
+        velocity = Vector3.zero;
+        rb.velocity = Vector3.zero;
+        rb.angularVelocity = Vector3.zero;
+        reachedTarget = false;
+    }
+    
+    void OnDrawGizmosSelected()
+    {
+        // Draw obstacle detection radius
+        Gizmos.color = Color.yellow;
+        Gizmos.DrawWireSphere(transform.position, obstacleDetectionRadius);
+        
+        // Draw safe distance
+        Gizmos.color = Color.red;
+        Gizmos.DrawWireSphere(transform.position, safeDistance);
+        
+        // Draw line to target
+        if (targetZone != null)
+        {
+            Gizmos.color = Color.green;
+            Gizmos.DrawLine(transform.position, targetZone.position);
+        }
+    }
+}
