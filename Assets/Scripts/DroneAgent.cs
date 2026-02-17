@@ -7,14 +7,7 @@ public class DroneAgent : MonoBehaviour
     public List<Vector3> waypoints = new List<Vector3>();
     private int current = 0;
 
-    void Start()
-    {
-        // example waypoints
-        waypoints.Add(new Vector3(5,1,5));
-        waypoints.Add(new Vector3(-5,1,5));
-        waypoints.Add(new Vector3(-5,1,-5));
-        waypoints.Add(new Vector3(5,1,-5));
-    }
+   
 
     void Update()
     {
