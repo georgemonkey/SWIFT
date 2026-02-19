@@ -432,7 +432,7 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 423084237}
   serializedVersion: 2
-  m_LocalRotation: {x: 0.7071068, y: -3.6343968e-16, z: -3.3567484e-16, w: 0.7071067}
+  m_LocalRotation: {x: 0.7071068, y: -1.2912268e-15, z: -1.2205173e-15, w: 0.7071067}
   m_LocalPosition: {x: 4.6568127e-10, y: -976.43005, z: 0.0000004917383}
   m_LocalScale: {x: 1, y: 1.0000005, z: 1.0000001}
   m_ConstrainProportionsScale: 0
@@ -562,9 +562,9 @@ MonoBehaviour:
   _detectTransformChanges: 1
   _localToGlobeFixedMatrix:
     c0:
-      x: 0.8479574451597311
-      y: -0.5300643085496152
-      z: -0.0000000000000006150662936108243
+      x: 0.847957445159732
+      y: -0.5300643085496136
+      z: -0.0000000000000025151662750358128
       w: 0
     c1:
       x: 0.39137157360937336
@@ -572,8 +572,8 @@ MonoBehaviour:
       z: 0.6744212978069852
       w: 0
     c2:
-      x: 0.3574865310460624
-      y: 0.5718803561293931
+      x: 0.3574865310460602
+      y: 0.5718803561293946
       z: -0.7383470785175964
       w: 0
     c3:
@@ -853,6 +853,95 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 478940964}
   m_CullTransparentMesh: 1
+--- !u!1 &538834783
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 538834785}
+  - component: {fileID: 538834784}
+  - component: {fileID: 538834786}
+  - component: {fileID: 538834787}
+  m_Layer: 0
+  m_Name: MissionManager
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &538834784
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 538834783}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bdc1631699e1c26499b19dd68f0d674d, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  georeference: {fileID: 2083814637}
+  mainCamera: {fileID: 423084244}
+  geofenceColor: {r: 0, g: 1, b: 1, a: 0.3}
+  outlineColor: {r: 0, g: 0, b: 0, a: 1}
+  sectorManager: {fileID: 538834786}
+--- !u!4 &538834785
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 538834783}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &538834786
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 538834783}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 34d66421e23719e41b8b9c4280ff64f3, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  georeference: {fileID: 2083814637}
+  numberOfDrones: 4
+  sectorColors:
+  - {r: 1, g: 0.92156863, b: 0.015686275, a: 1}
+  - {r: 0, g: 1, b: 0, a: 1}
+  - {r: 1, g: 0, b: 1, a: 1}
+  - {r: 0, g: 1, b: 1, a: 1}
+  - {r: 1, g: 0, b: 0, a: 1}
+  - {r: 0, g: 0, b: 1, a: 1}
+  - {r: 1, g: 1, b: 1, a: 1}
+  - {r: 0.5, g: 0.5, b: 0.5, a: 1}
+  droneSpawner: {fileID: 538834787}
+--- !u!114 &538834787
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 538834783}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e2ff45df8f5ff164d9570dccca5c154c, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  dronePrefab: {fileID: 0}
+  droneAltitudeOffset: 5
 --- !u!1 &761165015
 GameObject:
   m_ObjectHideFlags: 0
@@ -2069,3 +2158,4 @@ SceneRoots:
   - {fileID: 268606903}
   - {fileID: 761165018}
   - {fileID: 1127017017}
+  - {fileID: 538834785}
