@@ -7,21 +7,24 @@ public class GeofenceSectorManager : MonoBehaviour
 {
     [Header("References")]
     public CesiumGeoreference georeference;
+    public DroneSpawner droneSpawner;
 
-    [Header("Settings")]
+    [Header("Drone Settings")]
     [Range(1, 16)]
     public int numberOfDrones = 4;
 
+    [Header("Staging Grid Settings")]
+    [Tooltip("Spacing between drone start positions in degrees")]
+    public float stagingIncrement = 0.0001f;
+
     public Color[] sectorColors = new Color[]
     {
-        Color.yellow,
-        Color.green,
-        Color.magenta,
-        Color.cyan,
-        Color.red,
-        Color.blue,
-        Color.white,
-        Color.gray
+        Color.yellow, Color.green, Color.magenta, Color.cyan,
+        Color.red, Color.blue, Color.white, Color.gray,
+        new Color(1f,0.5f,0f), new Color(0.5f,0f,1f),
+        new Color(0f,1f,0.5f), new Color(1f,0f,0.5f),
+        new Color(0.5f,1f,0f), new Color(0f,0.5f,1f),
+        new Color(1f,1f,0f), new Color(0f,1f,1f)
     };
 
     public struct Sector
@@ -32,23 +35,14 @@ public class GeofenceSectorManager : MonoBehaviour
         public Color color;
     }
 
-    private List<Sector> sectors = new List<Sector>();  
-    public DroneSpawner droneSpawner;
+    private List<Sector> sectors = new List<Sector>();
     private List<GameObject> sectorVisuals = new List<GameObject>();
+    private double3[] stagingGeoCorners;
 
-    void Awake()
+    public void SetGeofenceAndSplit(double3[] geoCorners, double3[] stagingCorners)
     {
-        droneSpawner = GetComponent<DroneSpawner>();
+        stagingGeoCorners = stagingCorners;
 
-        if (droneSpawner == null)
-            Debug.LogError("DroneSpawner not found on this GameObject!");
-
-        if (georeference == null)
-            Debug.LogError("CesiumGeoreference not assigned!");
-    }
-
-    public void SetGeofenceAndSplit(double3[] geoCorners)
-    {
         double minLat = double.MaxValue, maxLat = double.MinValue;
         double minLng = double.MaxValue, maxLng = double.MinValue;
 
@@ -60,11 +54,11 @@ public class GeofenceSectorManager : MonoBehaviour
             if (c.x > maxLng) maxLng = c.x;
         }
 
-        Debug.Log($"Geofence bounds: Lat {minLat:F6} to {maxLat:F6}, Lng {minLng:F6} to {maxLng:F6}");
         SplitIntoSectors(minLat, maxLat, minLng, maxLng, numberOfDrones);
     }
 
-    void SplitIntoSectors(double minLat, double maxLat, double minLng, double maxLng, int n)
+    void SplitIntoSectors(double minLat, double maxLat,
+        double minLng, double maxLng, int n)
     {
         sectors.Clear();
         foreach (var v in sectorVisuals) Destroy(v);
@@ -101,11 +95,22 @@ public class GeofenceSectorManager : MonoBehaviour
             }
         }
 
-        Debug.Log($"Created {sectors.Count} sectors in a {cols}x{rows} grid.");
-        droneSpawner.SpawnDrones(sectors, georeference);
+        Debug.Log($"Created {sectors.Count} sectors ({cols}x{rows}).");
+
+        if (droneSpawner == null)
+        {
+            Debug.LogError("DroneSpawner not assigned!");
+            return;
+        }
+
+        List<(double lng, double lat)> stagingPositions =
+            ComputeStagingPositions(numberOfDrones);
+
+        droneSpawner.SpawnDrones(sectors, stagingPositions, georeference);
     }
 
-    void GetBestGrid(int n, double lngRange, double latRange, out int cols, out int rows)
+    void GetBestGrid(int n, double lngRange, double latRange,
+        out int cols, out int rows)
     {
         cols = 1;
         rows = n;
@@ -115,10 +120,8 @@ public class GeofenceSectorManager : MonoBehaviour
         {
             if (n % c != 0) continue;
             int r = n / c;
-
             float cellAspect = (float)((lngRange / c) / (latRange / r));
             float score = Mathf.Abs(1f - cellAspect);
-
             if (score < bestScore)
             {
                 bestScore = score;
@@ -128,64 +131,63 @@ public class GeofenceSectorManager : MonoBehaviour
         }
     }
 
+    List<(double lng, double lat)> ComputeStagingPositions(int n)
+    {
+        var positions = new List<(double, double)>();
+
+        if (stagingGeoCorners == null || stagingGeoCorners.Length < 4)
+        {
+            Debug.LogError("Staging corners not set!");
+            return positions;
+        }
+
+        double minLat = double.MaxValue, maxLat = double.MinValue;
+        double minLng = double.MaxValue, maxLng = double.MinValue;
+
+        foreach (var c in stagingGeoCorners)
+        {
+            if (c.y < minLat) minLat = c.y;
+            if (c.y > maxLat) maxLat = c.y;
+            if (c.x < minLng) minLng = c.x;
+            if (c.x > maxLng) maxLng = c.x;
+        }
+
+        double startLng = minLng + stagingIncrement;
+        double startLat = minLat + stagingIncrement;
+
+        int cols = Mathf.Max(1,
+            Mathf.FloorToInt((float)((maxLng - minLng) / stagingIncrement)));
+
+        for (int i = 0; i < n; i++)
+        {
+            int col = i % cols;
+            int row = i / cols;
+
+            double lng = startLng + col * stagingIncrement;
+            double lat = startLat + row * stagingIncrement;
+
+            lng = System.Math.Min(lng, maxLng - stagingIncrement * 0.5);
+            lat = System.Math.Min(lat, maxLat - stagingIncrement * 0.5);
+
+            positions.Add((lng, lat));
+        }
+
+        return positions;
+    }
+
     void VisualizeSector(Sector sector)
     {
-        double3[] geoPoints = new double3[]
-        {
-        new double3(sector.minLng, sector.minLat, 200),
-        new double3(sector.maxLng, sector.minLat, 200),
-        new double3(sector.maxLng, sector.maxLat, 200),
-        new double3(sector.minLng, sector.maxLat, 200),
-        };
+        GameObject anchorRoot = new GameObject($"Sector_{sector.droneId}_Root");
+        CesiumGlobeAnchor anchor = anchorRoot.AddComponent<CesiumGlobeAnchor>();
 
-        Vector3[] worldPoints = new Vector3[4];
-        for (int i = 0; i < 4; i++)
-        {
-            double3 ecef = CesiumWgs84Ellipsoid
-                .LongitudeLatitudeHeightToEarthCenteredEarthFixed(geoPoints[i]);
-            double3 unity = georeference
-                .TransformEarthCenteredEarthFixedPositionToUnity(ecef);
-            worldPoints[i] = new Vector3((float)unity.x, (float)unity.y, (float)unity.z);
-            Debug.Log($"Sector {sector.droneId} world point {i}: {worldPoints[i]}");
-        }
+        double centerLng = (sector.minLng + sector.maxLng) / 2.0;
+        double centerLat = (sector.minLat + sector.maxLat) / 2.0;
+        anchor.longitudeLatitudeHeight = new double3(centerLng, centerLat, 150);
+        anchor.adjustOrientationForGlobeWhenMoving = true;
 
-        // Use a 5 point loop (close the rectangle)
-        Vector3[] loopPoints = new Vector3[]
-        {
-        worldPoints[0],
-        worldPoints[1],
-        worldPoints[2],
-        worldPoints[3],
-        worldPoints[0], // close the loop manually
-        };
-
-        GameObject outlineObj = new GameObject($"Sector_{sector.droneId}_Outline");
-        LineRenderer lr = outlineObj.AddComponent<LineRenderer>();
-        lr.loop = false;
-        lr.positionCount = 5;
-        lr.SetPositions(loopPoints);
-        lr.widthMultiplier = 2f;
-        lr.useWorldSpace = true;
-
-        // Try every possible shader
-        Shader shader = Shader.Find("Universal Render Pipeline/Unlit")
-                     ?? Shader.Find("Unlit/Color")
-                     ?? Shader.Find("GUI/Text Shader")
-                     ?? Shader.Find("Sprites/Default");
-
-        if (shader == null)
-        {
-            Debug.LogError("No valid shader found! Check your render pipeline.");
-            return;
-        }
-
-        Material mat = new Material(shader);
-        mat.color = sector.color;
-        lr.material = mat;
-        lr.startColor = sector.color;
-        lr.endColor = sector.color;
-
-        sectorVisuals.Add(outlineObj);
+        SectorRenderer sr = anchorRoot.AddComponent<SectorRenderer>();
+        sr.Initialize(sector, georeference, anchor);
+        sectorVisuals.Add(anchorRoot);
     }
 
     public List<Sector> GetSectors() => sectors;

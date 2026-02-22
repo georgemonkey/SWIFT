@@ -432,7 +432,7 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 423084237}
   serializedVersion: 2
-  m_LocalRotation: {x: 0.7071068, y: -1.2912268e-15, z: -1.2205173e-15, w: 0.7071067}
+  m_LocalRotation: {x: 0.7071068, y: -2.1309807e-15, z: -2.0966562e-15, w: 0.7071067}
   m_LocalPosition: {x: 4.6568127e-10, y: -976.43005, z: 0.0000004917383}
   m_LocalScale: {x: 1, y: 1.0000005, z: 1.0000001}
   m_ConstrainProportionsScale: 0
@@ -562,18 +562,18 @@ MonoBehaviour:
   _detectTransformChanges: 1
   _localToGlobeFixedMatrix:
     c0:
-      x: 0.847957445159732
-      y: -0.5300643085496136
-      z: -0.0000000000000025151662750358128
+      x: 0.8479574451597329
+      y: -0.5300643085496123
+      z: -0.000000000000004378764693299117
       w: 0
     c1:
-      x: 0.39137157360937336
+      x: 0.39137157360937347
       y: 0.6260871262470299
       z: 0.6744212978069852
       w: 0
     c2:
-      x: 0.3574865310460602
-      y: 0.5718803561293946
+      x: 0.35748653104605815
+      y: 0.5718803561293958
       z: -0.7383470785175964
       w: 0
     c3:
@@ -886,9 +886,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   georeference: {fileID: 2083814637}
   mainCamera: {fileID: 423084244}
+  sectorManager: {fileID: 538834786}
   geofenceColor: {r: 0, g: 1, b: 1, a: 0.3}
   outlineColor: {r: 0, g: 0, b: 0, a: 1}
-  sectorManager: {fileID: 538834786}
 --- !u!4 &538834785
 Transform:
   m_ObjectHideFlags: 0
@@ -917,6 +917,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   georeference: {fileID: 2083814637}
+  droneSpawner: {fileID: 538834787}
   numberOfDrones: 4
   sectorColors:
   - {r: 1, g: 0.92156863, b: 0.015686275, a: 1}
@@ -927,7 +928,6 @@ MonoBehaviour:
   - {r: 0, g: 0, b: 1, a: 1}
   - {r: 1, g: 1, b: 1, a: 1}
   - {r: 0.5, g: 0.5, b: 0.5, a: 1}
-  droneSpawner: {fileID: 538834787}
 --- !u!114 &538834787
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -941,7 +941,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   dronePrefab: {fileID: 0}
-  droneAltitudeOffset: 5
+  droneAltitude: 150
 --- !u!1 &761165015
 GameObject:
   m_ObjectHideFlags: 0
@@ -1175,6 +1175,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   cesiumGeoreference: {fileID: 2083814637}
   addressInput: {fileID: 1743822807}
+  statusText: {fileID: 0}
 --- !u!4 &1127017017
 Transform:
   m_ObjectHideFlags: 0

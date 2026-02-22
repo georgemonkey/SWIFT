@@ -8,101 +8,184 @@ public class GeofenceDrawer : MonoBehaviour
     [Header("References")]
     public CesiumGeoreference georeference;
     public Camera mainCamera;
+    public GeofenceSectorManager sectorManager;
 
     [Header("Visuals")]
     public Color geofenceColor = new Color(0f, 1f, 1f, 0.3f);
     public Color outlineColor = Color.cyan;
+    public Color stagingColor = new Color(1f, 0.5f, 0f, 0.3f);
+    public Color stagingOutlineColor = Color.yellow;
+
+    [Header("Drawing Mode")]
+    public bool drawingGeofence = true;
 
     private Vector3 worldCornerA;
     private Vector3 worldCornerB;
     private bool firstPointSet = false;
     private bool geofenceFinalized = false;
 
+    private Vector3 stagingCornerA;
+    private Vector3 stagingCornerB;
+    private bool stagingFirstPointSet = false;
+    private bool stagingFinalized = false;
+
     private GameObject geofenceQuad;
+    private GameObject stagingQuad;
     private LineRenderer outlineRenderer;
-    public GeofenceSectorManager sectorManager;
+    private LineRenderer stagingPreviewRenderer;
+
+    public double3[] GeofenceGeoCorners { get; private set; }
+    public double3[] StagingGeoCorners { get; private set; }
 
     void Update()
     {
-        // Lazy load — grab it the first time Update runs
         if (sectorManager == null)
             sectorManager = GetComponent<GeofenceSectorManager>();
-
-        if (geofenceFinalized) return;
 
         if (Input.GetMouseButtonDown(0))
         {
             Ray ray = mainCamera.ScreenPointToRay(Input.mousePosition);
             if (Physics.Raycast(ray, out RaycastHit hit))
             {
-                if (!firstPointSet)
-                {
-                    worldCornerA = hit.point;
-                    firstPointSet = true;
-                    Debug.Log("First corner set at: " + worldCornerA);
-                }
-                else
-                {
-                    worldCornerB = hit.point;
-                    FinalizeGeofence();
-                }
+                if (drawingGeofence && !geofenceFinalized)
+                    HandleGeofenceClick(hit.point);
+                else if (!drawingGeofence && !stagingFinalized)
+                    HandleStagingClick(hit.point);
             }
             else
             {
-                Debug.LogWarning("Raycast did not hit anything. Make sure terrain has a collider.");
+                Debug.LogWarning("Raycast missed terrain.");
             }
         }
 
-        if (firstPointSet && !geofenceFinalized)
+        // Live preview geofence
+        if (firstPointSet && !geofenceFinalized && drawingGeofence)
         {
             Ray ray = mainCamera.ScreenPointToRay(Input.mousePosition);
             if (Physics.Raycast(ray, out RaycastHit hit))
-            {
-                DrawPreview(worldCornerA, hit.point);
-            }
+                DrawPreview(worldCornerA, hit.point,
+                    ref outlineRenderer, "GeofencePreview", outlineColor);
+        }
+
+        // Live preview staging
+        if (stagingFirstPointSet && !stagingFinalized && !drawingGeofence)
+        {
+            Ray ray = mainCamera.ScreenPointToRay(Input.mousePosition);
+            if (Physics.Raycast(ray, out RaycastHit hit))
+                DrawPreview(stagingCornerA, hit.point,
+                    ref stagingPreviewRenderer, "StagingPreview", stagingOutlineColor);
         }
     }
 
-    void DrawPreview(Vector3 a, Vector3 b)
+    void HandleGeofenceClick(Vector3 point)
+    {
+        if (!firstPointSet)
+        {
+            worldCornerA = point;
+            firstPointSet = true;
+            Debug.Log("Geofence first corner set.");
+        }
+        else
+        {
+            worldCornerB = point;
+            FinalizeGeofence();
+        }
+    }
+
+    void HandleStagingClick(Vector3 point)
+    {
+        if (!stagingFirstPointSet)
+        {
+            stagingCornerA = point;
+            stagingFirstPointSet = true;
+            Debug.Log("Staging zone first corner set.");
+        }
+        else
+        {
+            stagingCornerB = point;
+            FinalizeStaging();
+        }
+    }
+
+    void DrawPreview(Vector3 a, Vector3 b, ref LineRenderer lr,
+        string objName, Color color)
     {
         Vector3[] corners = GetRectCorners(a, b);
-
-        if (outlineRenderer == null)
+        if (lr == null)
         {
-            GameObject lineObj = new GameObject("GeofencePreview");
-            outlineRenderer = lineObj.AddComponent<LineRenderer>();
-            outlineRenderer.loop = true;
-            outlineRenderer.positionCount = 4;
-            outlineRenderer.widthMultiplier = 0.5f;
-            outlineRenderer.material = new Material(Shader.Find("Sprites/Default"));
-            outlineRenderer.startColor = outlineColor;
-            outlineRenderer.endColor = outlineColor;
-            outlineRenderer.useWorldSpace = true;
+            GameObject lineObj = new GameObject(objName);
+            lr = lineObj.AddComponent<LineRenderer>();
+            lr.loop = true;
+            lr.positionCount = 4;
+            lr.widthMultiplier = 0.5f;
+            lr.material = new Material(GetShader());
+            lr.startColor = color;
+            lr.endColor = color;
+            lr.useWorldSpace = true;
         }
-
-        outlineRenderer.SetPositions(corners);
+        lr.SetPositions(corners);
     }
 
     void FinalizeGeofence()
     {
-        if (sectorManager == null)
-        {
-            Debug.LogError("Cannot finalize — GeofenceSectorManager still not found!");
-            return;
-        }
-
         geofenceFinalized = true;
 
         if (outlineRenderer != null)
             Destroy(outlineRenderer.gameObject);
 
         Vector3[] corners = GetRectCorners(worldCornerA, worldCornerB);
-        DrawGeofenceMesh(corners);
+        GeofenceGeoCorners = ConvertToGeoCoordinates(corners);
 
-        double3[] geoCorners = ConvertToGeoCoordinates(corners);
-        sectorManager.SetGeofenceAndSplit(geoCorners);
+        DrawZoneMesh(corners, GeofenceGeoCorners, ref geofenceQuad,
+            "GeofenceMesh", outlineColor, geofenceColor, true);
 
-        Debug.Log("Geofence finalized.");
+        Debug.Log("Geofence finalized. Now draw the staging zone.");
+        drawingGeofence = false;
+    }
+
+    void FinalizeStaging()
+    {
+        stagingFinalized = true;
+
+        if (stagingPreviewRenderer != null)
+            Destroy(stagingPreviewRenderer.gameObject);
+
+        Vector3[] corners = GetRectCorners(stagingCornerA, stagingCornerB);
+        StagingGeoCorners = ConvertToGeoCoordinates(corners);
+
+        DrawZoneMesh(corners, StagingGeoCorners, ref stagingQuad,
+            "StagingMesh", stagingOutlineColor, stagingColor, false);
+
+        Debug.Log("Staging zone finalized. Starting mission planning.");
+
+        if (sectorManager != null)
+            sectorManager.SetGeofenceAndSplit(GeofenceGeoCorners, StagingGeoCorners);
+        else
+            Debug.LogError("SectorManager not found!");
+    }
+
+    void DrawZoneMesh(Vector3[] corners, double3[] geoCorners,
+        ref GameObject quad, string name, Color outline,
+        Color fill, bool isGeofence)
+    {
+        if (quad != null) Destroy(quad);
+
+        double centerLng = 0, centerLat = 0;
+        foreach (var c in geoCorners)
+        {
+            centerLng += c.x;
+            centerLat += c.y;
+        }
+        centerLng /= 4.0;
+        centerLat /= 4.0;
+
+        quad = new GameObject(name);
+        CesiumGlobeAnchor anchor = quad.AddComponent<CesiumGlobeAnchor>();
+        anchor.longitudeLatitudeHeight = new double3(centerLng, centerLat, 5);
+        anchor.adjustOrientationForGlobeWhenMoving = true;
+
+        GeofenceRenderer gr = quad.AddComponent<GeofenceRenderer>();
+        gr.Initialize(geoCorners, georeference, outline);
     }
 
     Vector3[] GetRectCorners(Vector3 a, Vector3 b)
@@ -122,63 +205,52 @@ public class GeofenceDrawer : MonoBehaviour
         };
     }
 
-    void DrawGeofenceMesh(Vector3[] corners)
-    {
-        geofenceQuad = new GameObject("GeofenceMesh");
-        MeshFilter mf = geofenceQuad.AddComponent<MeshFilter>();
-        MeshRenderer mr = geofenceQuad.AddComponent<MeshRenderer>();
-
-        Mesh mesh = new Mesh();
-        mesh.vertices = corners;
-        mesh.triangles = new int[] { 0, 2, 1, 0, 3, 2 };
-        mesh.RecalculateNormals();
-        mf.mesh = mesh;
-
-        Material mat = new Material(Shader.Find("Sprites/Default"));
-        mat.color = geofenceColor;
-        mr.material = mat;
-
-        GameObject outlineObj = new GameObject("GeofenceOutline");
-        LineRenderer lr = outlineObj.AddComponent<LineRenderer>();
-        lr.loop = true;
-        lr.positionCount = 4;
-        lr.SetPositions(corners);
-        lr.widthMultiplier = 0.5f;
-        lr.material = new Material(Shader.Find("Sprites/Default"));
-        lr.startColor = outlineColor;
-        lr.endColor = outlineColor;
-        lr.useWorldSpace = true;
-    }
-
     double3[] ConvertToGeoCoordinates(Vector3[] corners)
     {
         double3[] result = new double3[corners.Length];
         for (int i = 0; i < corners.Length; i++)
         {
-            double3 unityPos = new double3(corners[i].x, corners[i].y, corners[i].z);
-            double3 ecef = georeference.TransformUnityPositionToEarthCenteredEarthFixed(unityPos);
-            double3 llh = CesiumWgs84Ellipsoid.EarthCenteredEarthFixedToLongitudeLatitudeHeight(ecef);
-            result[i] = llh;
-            Debug.Log($"Corner {i}: Lon={llh.x:F6}, Lat={llh.y:F6}, Alt={llh.z:F2}");
+            double3 unityPos = new double3(
+                corners[i].x, corners[i].y, corners[i].z);
+            double3 ecef = georeference
+                .TransformUnityPositionToEarthCenteredEarthFixed(unityPos);
+            result[i] = CesiumWgs84Ellipsoid
+                .EarthCenteredEarthFixedToLongitudeLatitudeHeight(ecef);
+            Debug.Log($"Corner {i}: Lon={result[i].x:F6}, " +
+                $"Lat={result[i].y:F6}");
         }
         return result;
     }
 
-    public void ResetGeofence()
+    Shader GetShader()
+    {
+        return Shader.Find("Universal Render Pipeline/Unlit")
+            ?? Shader.Find("Unlit/Color")
+            ?? Shader.Find("Sprites/Default");
+    }
+
+    public void ResetAll()
     {
         firstPointSet = false;
         geofenceFinalized = false;
-        sectorManager = null;
+        stagingFirstPointSet = false;
+        stagingFinalized = false;
+        drawingGeofence = true;
 
         if (geofenceQuad != null) Destroy(geofenceQuad);
+        if (stagingQuad != null) Destroy(stagingQuad);
         if (outlineRenderer != null) Destroy(outlineRenderer.gameObject);
+        if (stagingPreviewRenderer != null)
+            Destroy(stagingPreviewRenderer.gameObject);
 
-        foreach (var name in new[] { "GeofencePreview", "GeofenceOutline", "GeofenceMesh" })
+        foreach (var n in new[] {
+            "GeofencePreview", "GeofenceMesh",
+            "StagingPreview", "StagingMesh" })
         {
-            GameObject obj = GameObject.Find(name);
+            GameObject obj = GameObject.Find(n);
             if (obj != null) Destroy(obj);
         }
 
-        Debug.Log("Geofence reset.");
+        Debug.Log("Reset complete.");
     }
 }
