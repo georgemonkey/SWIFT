@@ -11,7 +11,13 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/Scenes/StartScreen.unity
     guid: 8c537bb307f4c497184770a6dc73fae4
-  - enabled: 1
+  - enabled: 0
     path: Assets/Scenes/PlanScreen.unity
     guid: cf6d5e2c0bce04ce7aaa30d420026b62
+  - enabled: 1
+    path: Assets/Scenes/testenv.unity
+    guid: 7ef3937f3c24f4098aab54a1f7315701
+  - enabled: 1
+    path: Assets/Scenes/RouteSettingsScreen.unity
+    guid: f2b05f1d3eba64f05bd60e149080a2eb
   m_configObjects: {}

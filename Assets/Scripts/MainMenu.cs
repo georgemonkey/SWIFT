@@ -7,7 +7,7 @@ public class MainMenu : MonoBehaviour
 {
    public void StartEnviro()
     {
-        SceneManager.LoadScene("PlanScreen"); 
+        SceneManager.LoadScene("RouteSettings"); 
     }
     
     public void QuitApp()
