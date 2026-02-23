@@ -9,6 +9,7 @@ public class GeofenceDrawer : MonoBehaviour
     public CesiumGeoreference georeference;
     public Camera mainCamera;
     public GeofenceSectorManager sectorManager;
+    public Transform cesiumRoot;
 
     [Header("Visuals")]
     public Color geofenceColor = new Color(0f, 1f, 1f, 0.3f);
@@ -114,6 +115,8 @@ public class GeofenceDrawer : MonoBehaviour
         if (lr == null)
         {
             GameObject lineObj = new GameObject(objName);
+            if (cesiumRoot != null)
+                lineObj.transform.SetParent(cesiumRoot);
             lr = lineObj.AddComponent<LineRenderer>();
             lr.loop = true;
             lr.positionCount = 4;
@@ -137,7 +140,7 @@ public class GeofenceDrawer : MonoBehaviour
         GeofenceGeoCorners = ConvertToGeoCoordinates(corners);
 
         DrawZoneMesh(corners, GeofenceGeoCorners, ref geofenceQuad,
-            "GeofenceMesh", outlineColor, geofenceColor, true);
+            "GeofenceMesh", outlineColor, geofenceColor);
 
         Debug.Log("Geofence finalized. Now draw the staging zone.");
         drawingGeofence = false;
@@ -154,7 +157,7 @@ public class GeofenceDrawer : MonoBehaviour
         StagingGeoCorners = ConvertToGeoCoordinates(corners);
 
         DrawZoneMesh(corners, StagingGeoCorners, ref stagingQuad,
-            "StagingMesh", stagingOutlineColor, stagingColor, false);
+            "StagingMesh", stagingOutlineColor, stagingColor);
 
         Debug.Log("Staging zone finalized. Starting mission planning.");
 
@@ -165,8 +168,7 @@ public class GeofenceDrawer : MonoBehaviour
     }
 
     void DrawZoneMesh(Vector3[] corners, double3[] geoCorners,
-        ref GameObject quad, string name, Color outline,
-        Color fill, bool isGeofence)
+        ref GameObject quad, string name, Color outline, Color fill)
     {
         if (quad != null) Destroy(quad);
 
@@ -180,6 +182,11 @@ public class GeofenceDrawer : MonoBehaviour
         centerLat /= 4.0;
 
         quad = new GameObject(name);
+
+        // Parent to CesiumGeoreference so anchor works correctly
+        if (cesiumRoot != null)
+            quad.transform.SetParent(cesiumRoot);
+
         CesiumGlobeAnchor anchor = quad.AddComponent<CesiumGlobeAnchor>();
         anchor.longitudeLatitudeHeight = new double3(centerLng, centerLat, 5);
         anchor.adjustOrientationForGlobeWhenMoving = true;

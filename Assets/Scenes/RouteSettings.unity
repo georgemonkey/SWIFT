@@ -1418,7 +1418,6 @@ GameObject:
   m_Component:
   - component: {fileID: 652487840}
   - component: {fileID: 652487841}
-  - component: {fileID: 652487842}
   m_Layer: 0
   m_Name: settings
   m_TagString: Untagged
@@ -1461,21 +1460,13 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: b3598551889e04776bb31443dc0818fe, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
---- !u!114 &652487842
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 652487839}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: ca84426d9b5b24455a6ee193e86c6c14, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  speedSlider: {fileID: 2140083660}
-  droneCountInput: {fileID: 0}
-  searchPatternDropdown: {fileID: 0}
+  rthSlider: {fileID: 2140083660}
+  droneCountInput: {fileID: 304914783}
+  activeDroneCountInput: {fileID: 812140720}
+  altitudeDelateRateInput: {fileID: 1878999213}
+  seperationDistanceInput: {fileID: 1075421539}
+  aggressionDropdown: {fileID: 2028853824}
+  searchPatternDropdown: {fileID: 1248014861}
 --- !u!1 &660910557
 GameObject:
   m_ObjectHideFlags: 0
@@ -3937,13 +3928,13 @@ MonoBehaviour:
   m_Value: 0
   m_Options:
     m_Options:
-    - m_Text: o1
+    - m_Text: Lawnmower
       m_Image: {fileID: 0}
-    - m_Text: o2
+    - m_Text: Spiral
       m_Image: {fileID: 0}
-    - m_Text: o3
+    - m_Text: Expanding Square
       m_Image: {fileID: 0}
-    - m_Text: o4
+    - m_Text: Random Walk
       m_Image: {fileID: 0}
   m_OnValueChanged:
     m_PersistentCalls:
@@ -4251,7 +4242,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: o1
+  m_text: Lawnmower
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
   m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}

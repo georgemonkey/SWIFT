@@ -8,14 +8,7 @@ public class GeofenceSectorManager : MonoBehaviour
     [Header("References")]
     public CesiumGeoreference georeference;
     public DroneSpawner droneSpawner;
-
-    [Header("Drone Settings")]
-    [Range(1, 16)]
-    public int numberOfDrones = 4;
-
-    [Header("Staging Grid Settings")]
-    [Tooltip("Spacing between drone start positions in degrees")]
-    public float stagingIncrement = 0.0001f;
+    public Transform cesiumRoot;
 
     public Color[] sectorColors = new Color[]
     {
@@ -54,7 +47,7 @@ public class GeofenceSectorManager : MonoBehaviour
             if (c.x > maxLng) maxLng = c.x;
         }
 
-        SplitIntoSectors(minLat, maxLat, minLng, maxLng, numberOfDrones);
+        SplitIntoSectors(minLat, maxLat, minLng, maxLng, Variables.droneCount);
     }
 
     void SplitIntoSectors(double minLat, double maxLat,
@@ -95,7 +88,8 @@ public class GeofenceSectorManager : MonoBehaviour
             }
         }
 
-        Debug.Log($"Created {sectors.Count} sectors ({cols}x{rows}).");
+        Debug.Log($"Created {sectors.Count} sectors ({cols}x{rows}) " +
+            $"for {n} drones.");
 
         if (droneSpawner == null)
         {
@@ -104,7 +98,7 @@ public class GeofenceSectorManager : MonoBehaviour
         }
 
         List<(double lng, double lat)> stagingPositions =
-            ComputeStagingPositions(numberOfDrones);
+            ComputeStagingPositions(n);
 
         droneSpawner.SpawnDrones(sectors, stagingPositions, georeference);
     }
@@ -152,24 +146,47 @@ public class GeofenceSectorManager : MonoBehaviour
             if (c.x > maxLng) maxLng = c.x;
         }
 
-        double startLng = minLng + stagingIncrement;
-        double startLat = minLat + stagingIncrement;
+        // Convert meters to degrees
+        double increment = Variables.seperationDistance / 111320.0;
+
+        double stagingWidth = maxLng - minLng;
+        double stagingHeight = maxLat - minLat;
+
+        // Safety clamp if increment too large or invalid
+        if (increment <= 0 || increment > stagingWidth / 2.0)
+        {
+            Debug.LogWarning($"Separation distance {Variables.seperationDistance}m " +
+                $"too large or invalid. Using auto spacing.");
+            increment = System.Math.Min(stagingWidth, stagingHeight) /
+                (System.Math.Sqrt(n) + 1);
+        }
+
+        Debug.Log($"Staging bounds: Lat {minLat:F6} to {maxLat:F6}, " +
+            $"Lng {minLng:F6} to {maxLng:F6}");
+        Debug.Log($"Computed increment: {increment:F8} degrees " +
+            $"({Variables.seperationDistance}m)");
+
+        double startLng = minLng + increment;
+        double startLat = minLat + increment;
 
         int cols = Mathf.Max(1,
-            Mathf.FloorToInt((float)((maxLng - minLng) / stagingIncrement)));
+            Mathf.FloorToInt((float)((stagingWidth - increment) / increment)));
+
+        Debug.Log($"Staging cols: {cols}");
 
         for (int i = 0; i < n; i++)
         {
             int col = i % cols;
             int row = i / cols;
 
-            double lng = startLng + col * stagingIncrement;
-            double lat = startLat + row * stagingIncrement;
+            double lng = startLng + col * increment;
+            double lat = startLat + row * increment;
 
-            lng = System.Math.Min(lng, maxLng - stagingIncrement * 0.5);
-            lat = System.Math.Min(lat, maxLat - stagingIncrement * 0.5);
+            lng = System.Math.Min(lng, maxLng - increment * 0.5);
+            lat = System.Math.Min(lat, maxLat - increment * 0.5);
 
             positions.Add((lng, lat));
+            Debug.Log($"Staging position {i}: Lat={lat:F6}, Lng={lng:F6}");
         }
 
         return positions;
@@ -178,6 +195,11 @@ public class GeofenceSectorManager : MonoBehaviour
     void VisualizeSector(Sector sector)
     {
         GameObject anchorRoot = new GameObject($"Sector_{sector.droneId}_Root");
+
+        // Parent to CesiumGeoreference so anchor works correctly
+        if (cesiumRoot != null)
+            anchorRoot.transform.SetParent(cesiumRoot);
+
         CesiumGlobeAnchor anchor = anchorRoot.AddComponent<CesiumGlobeAnchor>();
 
         double centerLng = (sector.minLng + sector.maxLng) / 2.0;

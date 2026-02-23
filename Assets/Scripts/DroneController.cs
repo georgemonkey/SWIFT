@@ -6,27 +6,26 @@ using System.Collections.Generic;
 
 public class DroneController : MonoBehaviour
 {
-    [Header("Movement")]
-    public float moveSpeed = 10f;
-
-    [Header("Path Planning")]
-    public PathPlanner.Algorithm algorithm = PathPlanner.Algorithm.Lawnmower;
-
     [Header("Status")]
     public int droneId;
     public float coveragePercent = 0f;
     public bool missionComplete = false;
     public bool isLeader = false;
+    public float batteryLevel = 100f;
 
     [Header("Leader-Follower")]
     public List<DroneController> followers = new List<DroneController>();
     public float leaderPollRate = 1f;
+
+    public PathPlanner.Algorithm Algorithm =>
+        ParseAlgorithm(Variables.searchPattern);
 
     private GeofenceSectorManager.Sector sector;
     private CesiumGeoreference georeference;
     private List<(double lng, double lat)> waypoints;
     private int currentWaypointIndex = 0;
     private LidarSimulator lidar;
+    private float moveSpeed = 10f;
 
     private HashSet<string> coveredCells = new HashSet<string>();
     private int totalCells = 0;
@@ -38,18 +37,29 @@ public class DroneController : MonoBehaviour
     private bool missionStarted = false;
     private float pollTimer = 0f;
 
-    // Stuck detection
     private double lastLng, lastLat;
     private float stuckTimer = 0f;
     private const float STUCK_THRESHOLD = 5f;
 
+    float BatteryDrainRate()
+    {
+        switch (Variables.aggression.ToLower().Trim())
+        {
+            case "aggressive": return 0.05f;
+            case "moderate": return 0.03f;
+            case "gentle": return 0.01f;
+            default: return 0.02f;
+        }
+    }
+
     public void Initialize(GeofenceSectorManager.Sector s,
-        CesiumGeoreference geo, int id)
+        CesiumGeoreference geo, int id, float speed)
     {
         sector = s;
         georeference = geo;
         droneId = id;
         isLeader = (id == 1);
+        moveSpeed = speed;
 
         lidar = GetComponent<LidarSimulator>();
 
@@ -62,11 +72,14 @@ public class DroneController : MonoBehaviour
             anchor.SetControlledByController(true);
         }
 
-        waypoints = PathPlanner.GeneratePath(sector, algorithm);
+        var algo = Algorithm;
+        waypoints = PathPlanner.GeneratePath(sector, algo);
         totalCells = waypoints.Count;
 
-        Debug.Log($"Drone {droneId} initialized — " +
-            $"{waypoints.Count} waypoints, algorithm: {algorithm}");
+        Debug.Log($"Drone {droneId} ready — " +
+            $"{waypoints.Count} waypoints, " +
+            $"algorithm: {algo}, " +
+            $"speed: {moveSpeed}");
     }
 
     public void StartMission()
@@ -78,13 +91,29 @@ public class DroneController : MonoBehaviour
 
     void Update()
     {
-        if (!isLeader || !missionStarted) return;
+        if (!missionStarted) return;
 
-        pollTimer += Time.deltaTime;
-        if (pollTimer >= leaderPollRate)
+        batteryLevel -= BatteryDrainRate() * Time.deltaTime;
+        batteryLevel = Mathf.Max(0f, batteryLevel);
+
+        if (batteryLevel <= Variables.rth && !missionComplete)
         {
-            pollTimer = 0f;
-            MonitorFollowers();
+            Debug.LogWarning($"Drone {droneId} battery at " +
+                $"{batteryLevel:F1}% — RTH triggered.");
+            StopAllCoroutines();
+            missionComplete = true;
+            StartCoroutine(ReturnToHome());
+            return;
+        }
+
+        if (isLeader)
+        {
+            pollTimer += Time.deltaTime;
+            if (pollTimer >= leaderPollRate)
+            {
+                pollTimer = 0f;
+                MonitorFollowers();
+            }
         }
     }
 
@@ -95,6 +124,8 @@ public class DroneController : MonoBehaviour
 
         while (currentWaypointIndex < waypoints.Count)
         {
+            if (batteryLevel <= Variables.rth) yield break;
+
             var target = waypoints[currentWaypointIndex];
             yield return StartCoroutine(FlyToWaypoint(target.lng, target.lat));
 
@@ -109,21 +140,35 @@ public class DroneController : MonoBehaviour
         }
 
         missionComplete = true;
-        Debug.Log($"Drone {droneId} complete. Coverage: {coveragePercent:F1}%");
+        Debug.Log($"Drone {droneId} complete. " +
+            $"Coverage: {coveragePercent:F1}%, " +
+            $"Battery: {batteryLevel:F1}%");
     }
 
     IEnumerator TakeOff()
     {
         double targetAlt = currentAlt;
         currentAlt = targetAlt - 50.0;
+        float climbRate = Variables.altitudeDelateRate;
 
         while (currentAlt < targetAlt)
         {
-            currentAlt += 5.0 * Time.deltaTime;
+            currentAlt += climbRate * Time.deltaTime;
             UpdatePosition();
             yield return null;
         }
         currentAlt = targetAlt;
+    }
+
+    IEnumerator ReturnToHome()
+    {
+        Debug.Log($"Drone {droneId} returning to home...");
+        if (waypoints.Count > 0)
+        {
+            var home = waypoints[0];
+            yield return StartCoroutine(FlyToWaypoint(home.lng, home.lat));
+        }
+        Debug.Log($"Drone {droneId} landed.");
     }
 
     IEnumerator FlyToWaypoint(double targetLng, double targetLat)
@@ -165,22 +210,13 @@ public class DroneController : MonoBehaviour
             (float)unity.x, (float)unity.y, (float)unity.z);
     }
 
-    // ?? Leader-Follower ???????????????????????????????????????????
     void MonitorFollowers()
     {
         foreach (var follower in followers)
         {
             if (follower == null) continue;
-
-            if (follower.IsStuck())
-            {
-                Debug.LogWarning($"Leader: Drone {follower.droneId} stuck. " +
-                    $"Reassigning.");
-                ReassignSector(follower);
-            }
-
-            if (follower.missionComplete)
-                AssignAdditionalSector(follower);
+            if (follower.IsStuck()) ReassignSector(follower);
+            if (follower.missionComplete) AssignAdditionalSector(follower);
         }
     }
 
@@ -226,7 +262,6 @@ public class DroneController : MonoBehaviour
         }
     }
 
-    // ?? Stuck Detection ???????????????????????????????????????????
     public bool IsStuck()
     {
         double dist = System.Math.Sqrt(
@@ -267,6 +302,23 @@ public class DroneController : MonoBehaviour
         coveredCells.Clear();
     }
 
+    PathPlanner.Algorithm ParseAlgorithm(string pattern)
+    {
+        Debug.Log($"Parsing algorithm: '{pattern}'");
+        switch (pattern.ToLower().Trim())
+        {
+            case "lawnmower": return PathPlanner.Algorithm.Lawnmower;
+            case "spiral": return PathPlanner.Algorithm.Spiral;
+            case "expanding square": return PathPlanner.Algorithm.ExpandingSquare;
+            case "random walk": return PathPlanner.Algorithm.RandomWalk;
+            default:
+                Debug.LogWarning($"Unknown algorithm '{pattern}', " +
+                    $"defaulting to Lawnmower.");
+                return PathPlanner.Algorithm.Lawnmower;
+        }
+    }
+
     public (double lng, double lat) GetPosition() => (currentLng, currentLat);
     public float GetCoverage() => coveragePercent;
+    public float GetBattery() => batteryLevel;
 }

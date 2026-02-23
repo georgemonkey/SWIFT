@@ -10,11 +10,30 @@ public class DroneSpawner : MonoBehaviour
     public GameObject dronePrefab;
     public double droneAltitude = 150.0;
 
-    [Header("Takeoff Settings")]
-    public float takeoffInterval = 3f;
-
     private List<GameObject> spawnedDrones = new List<GameObject>();
     private CesiumGeoreference georeference;
+
+    float GetTakeoffInterval()
+    {
+        switch (Variables.aggression)
+        {
+            case "Aggressive": return 1f;
+            case "Moderate": return 2f;
+            case "Gentle": return 4f;
+            default: return 3f;
+        }
+    }
+
+    float GetMoveSpeed()
+    {
+        switch (Variables.aggression)
+        {
+            case "Aggressive": return 20f;
+            case "Moderate": return 12f;
+            case "Gentle": return 6f;
+            default: return 10f;
+        }
+    }
 
     public void SpawnDrones(
         List<GeofenceSectorManager.Sector> sectors,
@@ -26,19 +45,48 @@ public class DroneSpawner : MonoBehaviour
         foreach (var d in spawnedDrones) Destroy(d);
         spawnedDrones.Clear();
 
+        // Debug staging info
+        Debug.Log($"Staging positions count: {stagingPositions.Count}");
+        Debug.Log($"Sectors count: {sectors.Count}");
+        Debug.Log($"Separation distance: {Variables.seperationDistance}");
+
+        for (int i = 0; i < stagingPositions.Count; i++)
+        {
+            Debug.Log($"Staging pos {i}: " +
+                $"Lat={stagingPositions[i].lat:F6}, " +
+                $"Lng={stagingPositions[i].lng:F6}");
+        }
+
         var allControllers = new List<DroneController>();
         DroneController leader = null;
 
-        for (int i = 0; i < sectors.Count; i++)
+        int spawnCount = Mathf.Min(Variables.activeDroneCount, sectors.Count);
+        Debug.Log($"Spawning {spawnCount} drones. " +
+            $"Aggression: {Variables.aggression}, " +
+            $"Pattern: {Variables.searchPattern}, " +
+            $"RTH at: {Variables.rth}%");
+
+        for (int i = 0; i < spawnCount; i++)
         {
             var sector = sectors[i];
 
-            double startLng = i < stagingPositions.Count
-                ? stagingPositions[i].lng
-                : (sector.minLng + sector.maxLng) / 2.0;
-            double startLat = i < stagingPositions.Count
-                ? stagingPositions[i].lat
-                : sector.minLat;
+            double startLng, startLat;
+
+            if (i < stagingPositions.Count)
+            {
+                startLng = stagingPositions[i].lng;
+                startLat = stagingPositions[i].lat;
+                Debug.Log($"Drone {i + 1} using staging position: " +
+                    $"Lat={startLat:F6}, Lng={startLng:F6}");
+            }
+            else
+            {
+                // Fallback to sector center
+                startLng = (sector.minLng + sector.maxLng) / 2.0;
+                startLat = sector.minLat;
+                Debug.LogWarning($"Drone {i + 1} falling back to sector position: " +
+                    $"Lat={startLat:F6}, Lng={startLng:F6}");
+            }
 
             double3 ecef = CesiumWgs84Ellipsoid
                 .LongitudeLatitudeHeightToEarthCenteredEarthFixed(
@@ -48,6 +96,8 @@ public class DroneSpawner : MonoBehaviour
             Vector3 spawnPos = new Vector3(
                 (float)unityPos.x, (float)unityPos.y, (float)unityPos.z);
 
+            Debug.Log($"Drone {i + 1} Unity spawn pos: {spawnPos}");
+
             GameObject drone = dronePrefab != null
                 ? Instantiate(dronePrefab, spawnPos, Quaternion.identity)
                 : CreatePlaceholder(spawnPos, sector.color);
@@ -55,14 +105,14 @@ public class DroneSpawner : MonoBehaviour
             drone.name = $"Drone_{i + 1}";
             drone.SetActive(false);
 
-            // Anchor
+            // Anchor — keeps drone fixed to geo position
             DroneAnchor anchor = drone.AddComponent<DroneAnchor>();
             anchor.Initialize(startLng, startLat, droneAltitude, georeference);
 
             // Controller
             DroneController controller = drone.GetComponent<DroneController>()
                 ?? drone.AddComponent<DroneController>();
-            controller.Initialize(sector, georeference, i + 1);
+            controller.Initialize(sector, georeference, i + 1, GetMoveSpeed());
 
             // LIDAR
             LidarSimulator lidar = drone.GetComponent<LidarSimulator>()
@@ -75,7 +125,7 @@ public class DroneSpawner : MonoBehaviour
             spawnedDrones.Add(drone);
         }
 
-        // Wire up leader-follower
+        // Wire leader-follower
         if (leader != null)
         {
             foreach (var dc in allControllers)
@@ -90,6 +140,8 @@ public class DroneSpawner : MonoBehaviour
 
     IEnumerator SequentialTakeoff(List<GameObject> drones)
     {
+        float interval = GetTakeoffInterval();
+
         for (int i = 0; i < drones.Count; i++)
         {
             drones[i].SetActive(true);
@@ -99,8 +151,8 @@ public class DroneSpawner : MonoBehaviour
             if (controller != null)
                 controller.StartMission();
 
-            Debug.Log($"Drone {i + 1} launched.");
-            yield return new WaitForSeconds(takeoffInterval);
+            Debug.Log($"Drone {i + 1} launched. Next in {interval}s.");
+            yield return new WaitForSeconds(interval);
         }
     }
 

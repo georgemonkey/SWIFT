@@ -432,7 +432,7 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 423084237}
   serializedVersion: 2
-  m_LocalRotation: {x: 0.7071068, y: -1.3367934e-15, z: -1.2834642e-15, w: 0.7071067}
+  m_LocalRotation: {x: 0.7071068, y: -1.3552283e-15, z: -1.3591814e-15, w: 0.7071067}
   m_LocalPosition: {x: 4.6568127e-10, y: -976.43005, z: 0.0000004917383}
   m_LocalScale: {x: 1, y: 1.0000005, z: 1.0000001}
   m_ConstrainProportionsScale: 0
@@ -564,16 +564,16 @@ MonoBehaviour:
     c0:
       x: 0.8479574451597321
       y: -0.5300643085496136
-      z: -0.0000000000000026145381196582075
+      z: -0.000000000000002685157363285213
       w: 0
     c1:
-      x: 0.39137157360937347
+      x: 0.39137157360937336
       y: 0.6260871262470299
       z: 0.6744212978069852
       w: 0
     c2:
-      x: 0.3574865310460601
-      y: 0.5718803561293946
+      x: 0.35748653104606
+      y: 0.5718803561293947
       z: -0.7383470785175964
       w: 0
     c3:
@@ -887,8 +887,12 @@ MonoBehaviour:
   georeference: {fileID: 2083814637}
   mainCamera: {fileID: 423084244}
   sectorManager: {fileID: 538834786}
+  cesiumRoot: {fileID: 2083814638}
   geofenceColor: {r: 0, g: 1, b: 1, a: 0.3}
   outlineColor: {r: 0, g: 0, b: 0, a: 1}
+  stagingColor: {r: 1, g: 0.5, b: 0, a: 0.3}
+  stagingOutlineColor: {r: 1, g: 0.92156863, b: 0.015686275, a: 1}
+  drawingGeofence: 1
 --- !u!4 &538834785
 Transform:
   m_ObjectHideFlags: 0
@@ -918,7 +922,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   georeference: {fileID: 2083814637}
   droneSpawner: {fileID: 538834787}
-  numberOfDrones: 4
+  cesiumRoot: {fileID: 2083814638}
   sectorColors:
   - {r: 1, g: 0.92156863, b: 0.015686275, a: 1}
   - {r: 0, g: 1, b: 0, a: 1}
@@ -1176,6 +1180,7 @@ MonoBehaviour:
   cesiumGeoreference: {fileID: 2083814637}
   addressInput: {fileID: 1743822807}
   statusText: {fileID: 0}
+  cesiumCameraObject: {fileID: 0}
 --- !u!4 &1127017017
 Transform:
   m_ObjectHideFlags: 0
