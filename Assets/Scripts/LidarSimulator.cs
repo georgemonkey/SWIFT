@@ -5,12 +5,13 @@ using System.Collections.Generic;
 
 public class LidarSimulator : MonoBehaviour
 {
-    [Header("LIDAR Settings")]
-    public float lidarRange = 11f;
+    [Header("Thermal Sensor Settings")]
+    // 10m altitude, 55 degree FOV ? 5.2m radius
+    public float detectionRadius = 5.2f;
     public int rayCount = 36;
     public LayerMask obstacleLayer;
     public bool visualizeRays = true;
-    public Color rayColor = new Color(1f, 0f, 0f, 0.3f);
+    public Color rayColor = new Color(1f, 0.4f, 0f, 0.4f); // orange = thermal
 
     [Header("Detection")]
     public bool targetDetected = false;
@@ -31,10 +32,11 @@ public class LidarSimulator : MonoBehaviour
         for (int i = 0; i < rayCount; i++)
         {
             float angle = (360f / rayCount) * i;
-            Vector3 direction = Quaternion.Euler(0, angle, 0) * transform.forward;
+            Vector3 direction = Quaternion.Euler(0, angle, 0)
+                * transform.forward;
 
             if (Physics.Raycast(transform.position, direction,
-                out RaycastHit hit, lidarRange, obstacleLayer))
+                out RaycastHit hit, detectionRadius, obstacleLayer))
             {
                 targetDetected = true;
                 lastDetectionPosition = hit.point;
@@ -54,7 +56,7 @@ public class LidarSimulator : MonoBehaviour
             {
                 if (visualizeRays)
                     Debug.DrawRay(transform.position,
-                        direction * lidarRange, rayColor, 0.1f);
+                        direction * detectionRadius, rayColor, 0.1f);
             }
         }
     }
@@ -62,7 +64,7 @@ public class LidarSimulator : MonoBehaviour
     void OnObjectDetected(GameObject obj, Vector3 worldPos,
         double droneLng, double droneLat)
     {
-        Debug.Log($"LIDAR Detection at Lat={droneLat:F5}, " +
+        Debug.Log($"Thermal detection at Lat={droneLat:F5}, " +
             $"Lng={droneLng:F5}: {obj.name}");
 
         if (georeference != null)

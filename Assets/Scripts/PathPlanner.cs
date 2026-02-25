@@ -11,13 +11,32 @@ public static class PathPlanner
         RandomWalk
     }
 
-    private const double DEFAULT_SPACING = 0.0001;
+    // 9m spacing — matches 5.2m LIDAR radius with slight overlap
+    private const double DEFAULT_SPACING = 0.000081;
 
     public static List<(double lng, double lat)> GeneratePath(
         GeofenceSectorManager.Sector sector,
         Algorithm algorithm,
         double spacing = DEFAULT_SPACING)
     {
+        double latRange = sector.maxLat - sector.minLat;
+        double lngRange = sector.maxLng - sector.minLng;
+        double latM = latRange * 111320.0;
+        double lngM = lngRange * 111320.0;
+
+        Debug.Log($"PathPlanner: Sector size = {latM:F1}m x {lngM:F1}m, " +
+            $"spacing = {spacing * 111320:F1}m, " +
+            $"algorithm = {algorithm}");
+
+        // Auto-scale spacing if still too large for sector
+        double minDimension = System.Math.Min(latRange, lngRange);
+        if (spacing >= minDimension / 2.0)
+        {
+            spacing = minDimension / 4.0;
+            Debug.LogWarning($"Spacing auto-scaled to " +
+                $"{spacing * 111320:F1}m to fit sector.");
+        }
+
         switch (algorithm)
         {
             case Algorithm.Lawnmower: return Lawnmower(sector, spacing);
@@ -53,6 +72,7 @@ public static class PathPlanner
             currentLng += spacing;
         }
 
+        Debug.Log($"Lawnmower generated {waypoints.Count} waypoints.");
         return waypoints;
     }
 
@@ -69,11 +89,24 @@ public static class PathPlanner
         minLat += buf; maxLat -= buf;
         minLng += buf; maxLng -= buf;
 
-        while (minLat < maxLat && minLng < maxLng)
+        int maxIterations = 1000;
+        int iteration = 0;
+
+        while (minLat < maxLat && minLng < maxLng && iteration < maxIterations)
         {
+            // Bottom: left to right
             waypoints.Add((minLng, minLat));
             waypoints.Add((maxLng, minLat));
+
+            // Right: bottom to top
+            waypoints.Add((maxLng, minLat));
             waypoints.Add((maxLng, maxLat));
+
+            // Top: right to left
+            waypoints.Add((maxLng, maxLat));
+            waypoints.Add((minLng, maxLat));
+
+            // Left: top to bottom (stop before bottom to avoid overlap)
             waypoints.Add((minLng, maxLat));
             waypoints.Add((minLng, minLat + spacing));
 
@@ -81,8 +114,11 @@ public static class PathPlanner
             maxLat -= spacing;
             minLng += spacing;
             maxLng -= spacing;
+
+            iteration++;
         }
 
+        Debug.Log($"Spiral generated {waypoints.Count} waypoints.");
         return waypoints;
     }
 
@@ -95,22 +131,28 @@ public static class PathPlanner
         double centerLng = (s.minLng + s.maxLng) / 2.0;
         double centerLat = (s.minLat + s.maxLat) / 2.0;
 
+        // Always start at center
+        waypoints.Add((centerLng, centerLat));
+
         double maxRadius = System.Math.Min(
             (s.maxLng - s.minLng) / 2.0,
-            (s.maxLat - s.minLat) / 2.0) - spacing * 0.5;
+            (s.maxLat - s.minLat) / 2.0);
 
         double radius = spacing;
 
         while (radius <= maxRadius)
         {
+            // SW ? SE ? NE ? NW ? back to SW
             waypoints.Add((centerLng - radius, centerLat - radius));
             waypoints.Add((centerLng + radius, centerLat - radius));
             waypoints.Add((centerLng + radius, centerLat + radius));
             waypoints.Add((centerLng - radius, centerLat + radius));
             waypoints.Add((centerLng - radius, centerLat - radius));
+
             radius += spacing;
         }
 
+        Debug.Log($"Expanding Square generated {waypoints.Count} waypoints.");
         return waypoints;
     }
 
@@ -124,15 +166,15 @@ public static class PathPlanner
         double currentLng = (s.minLng + s.maxLng) / 2.0;
         double currentLat = (s.minLat + s.maxLat) / 2.0;
 
-        int maxSteps = 500;
+        int maxSteps = 1000;
         int step = 0;
 
         double[][] directions = new double[][]
         {
-            new double[] {  0,       spacing },
-            new double[] {  0,      -spacing },
-            new double[] {  spacing, 0       },
-            new double[] { -spacing, 0       },
+            new double[] {  0,        spacing },  // N
+            new double[] {  0,       -spacing },  // S
+            new double[] {  spacing,  0       },  // E
+            new double[] { -spacing,  0       },  // W
         };
 
         while (step < maxSteps)
@@ -144,6 +186,7 @@ public static class PathPlanner
                 waypoints.Add((currentLng, currentLat));
             }
 
+            // Prefer unvisited neighbors
             var unvisited = new List<int>();
             for (int i = 0; i < directions.Length; i++)
             {
@@ -165,6 +208,7 @@ public static class PathPlanner
             }
             else
             {
+                // All neighbors visited — pick any valid direction
                 bool moved = false;
                 for (int i = 0; i < directions.Length; i++)
                 {
@@ -185,6 +229,7 @@ public static class PathPlanner
             step++;
         }
 
+        Debug.Log($"Random Walk generated {waypoints.Count} waypoints.");
         return waypoints;
     }
 }

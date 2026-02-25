@@ -12,9 +12,40 @@ public class AddressToCoords : MonoBehaviour
     public CesiumGeoreference cesiumGeoreference;
     public TMP_InputField addressInput;
     public TMP_Text statusText;
+    public GameObject cesiumCameraObject;
 
-    [Header("Camera Reference")]
-    public GameObject cesiumCameraObject; // drag DynamicCamera here
+    [Header("Start Zoom")]
+    public double startAltitude = 240.0; // 1200 / 5
+
+    void Start()
+    {
+        // Set starting zoom on scene load
+        SetCameraAltitude(startAltitude);
+    }
+
+    void SetCameraAltitude(double altitude)
+    {
+        if (cesiumCameraObject != null)
+        {
+            CesiumGlobeAnchor anchor = cesiumCameraObject
+                .GetComponentInChildren<CesiumGlobeAnchor>();
+            if (anchor != null)
+            {
+                var pos = anchor.longitudeLatitudeHeight;
+                anchor.longitudeLatitudeHeight =
+                    new double3(pos.x, pos.y, altitude);
+                Debug.Log($"Start altitude set to {altitude}m");
+                return;
+            }
+        }
+
+        // Fallback — move georeference height
+        if (cesiumGeoreference != null)
+        {
+            cesiumGeoreference.height = altitude;
+            Debug.Log($"Georeference height set to {altitude}m");
+        }
+    }
 
     public void OnSearchButtonClicked()
     {
@@ -31,7 +62,8 @@ public class AddressToCoords : MonoBehaviour
     IEnumerator GetCoordinatesFromAddress(string address)
     {
         string encodedAddress = UnityWebRequest.EscapeURL(address);
-        string url = $"https://nominatim.openstreetmap.org/search?format=json&q={encodedAddress}&limit=1";
+        string url = $"https://nominatim.openstreetmap.org/search" +
+            $"?format=json&q={encodedAddress}&limit=1";
 
         using (UnityWebRequest webRequest = UnityWebRequest.Get(url))
         {
@@ -48,7 +80,6 @@ public class AddressToCoords : MonoBehaviour
             }
 
             string json = webRequest.downloadHandler.text;
-            Debug.Log($"Response: {json}");
 
             if (string.IsNullOrEmpty(json) || json == "[]")
             {
@@ -91,48 +122,33 @@ public class AddressToCoords : MonoBehaviour
     {
         bool moved = false;
 
-        // Method 1 — Try CesiumGlobeAnchor on the camera object
         if (cesiumCameraObject != null)
         {
             CesiumGlobeAnchor anchor = cesiumCameraObject
-                .GetComponent<CesiumGlobeAnchor>();
+                .GetComponent<CesiumGlobeAnchor>()
+                ?? cesiumCameraObject
+                .GetComponentInChildren<CesiumGlobeAnchor>();
 
             if (anchor != null)
             {
                 anchor.longitudeLatitudeHeight =
-                    new double3(lon, lat, 500);
-                Debug.Log($"Moved camera anchor to: {lat}, {lon}");
+                    new double3(lon, lat, startAltitude);
+                Debug.Log($"Moved to: {lat}, {lon} at {startAltitude}m");
                 moved = true;
-            }
-            else
-            {
-                // Try finding anchor on children
-                anchor = cesiumCameraObject
-                    .GetComponentInChildren<CesiumGlobeAnchor>();
-                if (anchor != null)
-                {
-                    anchor.longitudeLatitudeHeight =
-                        new double3(lon, lat, 500);
-                    Debug.Log($"Moved child camera anchor to: {lat}, {lon}");
-                    moved = true;
-                }
             }
         }
 
-        // Method 2 — Move georeference origin directly
         if (!moved && cesiumGeoreference != null)
         {
             cesiumGeoreference.latitude = lat;
             cesiumGeoreference.longitude = lon;
-            cesiumGeoreference.height = 500;
-            Debug.Log($"Moved georeference to: {lat}, {lon}");
+            cesiumGeoreference.height = startAltitude;
             moved = true;
         }
 
-        if (moved)
-            SetStatus($"Moved to: {lat:F5}, {lon:F5}");
-        else
-            SetStatus("Could not move camera — check references.");
+        SetStatus(moved
+            ? $"Moved to: {lat:F5}, {lon:F5}"
+            : "Could not move camera.");
     }
 
     string ExtractValue(string json, string key)
@@ -148,8 +164,7 @@ public class AddressToCoords : MonoBehaviour
 
     void SetStatus(string message)
     {
-        if (statusText != null)
-            statusText.text = message;
+        if (statusText != null) statusText.text = message;
         Debug.Log(message);
     }
 }
