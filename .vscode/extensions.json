@@ -1,5 +1,9 @@
 {
     "recommendations": [
-      "visualstudiotoolsforunity.vstuc"
+        "visualstudiotoolsforunity.vstuc",
+        "ms-python.python",
+        "visualstudioexptteam.vscodeintellicode",
+        "ms-python.vscode-pylance",
+        "paulober.pico-w-go"
     ]
 }
