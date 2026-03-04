@@ -1,18 +1,14 @@
-import machine
-import utime
+from machine import UART
+import usb_cdc 
 
-lidar = machine.UART(0, baudrate=230400, tx=machine.Pin(0), rx=machine.Pin(1))
-machine.Pin(2, machine.Pin.OUT).value(1) # Spin motor
+# UART connected to your FC
+uart = UART(0, baudrate=115200, tx=0, rx=1)  # adjust pins if needed
 
-buf = bytearray(47)
+# USB serial (CDC)
+usb = usb_cdc.data  # gives a serial interface over USB
 
 while True:
-    if lidar.any() >= 47:
-        if lidar.read(1) == b'\x54':
-            lidar.readinto(memoryview(buf)[1:])
-            # Fast parse and print
-            angle = (buf[4] | (buf[5] << 8)) / 100.0
-            dist = buf[6] | (buf[7] << 8)
-            if 0 < dist < 5000:
-                print(f"{angle},{dist}")
-    # NO SLEEP here for maximum possible speed
+    if uart.any():
+        usb.write(uart.read())
+    if usb.any():
+        uart.write(usb.read())
