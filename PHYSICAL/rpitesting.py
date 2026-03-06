@@ -1,14 +1,10 @@
-from machine import UART
-import usb_cdc 
+from machine import Pin
+import time
 
-# UART connected to your FC
-uart = UART(0, baudrate=115200, tx=0, rx=1)  # adjust pins if needed
-
-# USB serial (CDC)
-usb = usb_cdc.data  # gives a serial interface over USB
+led = Pin(25, Pin.OUT)
 
 while True:
-    if uart.any():
-        usb.write(uart.read())
-    if usb.any():
-        uart.write(usb.read())
+    led.on()
+    time.sleep(0.5)
+    led.off()
+    time.sleep(0.5)
