@@ -6,6 +6,8 @@ TagManager:
   tags:
   - Obstacle
   - Particle
+  - Survivor
+  - FInish
   layers:
   - Default
   - TransparentFX

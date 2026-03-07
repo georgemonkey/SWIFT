@@ -74,7 +74,8 @@ public class GeofenceDrawer : MonoBehaviour
             Ray ray = mainCamera.ScreenPointToRay(Input.mousePosition);
             if (Physics.Raycast(ray, out RaycastHit hit))
                 DrawPreview(stagingCornerA, hit.point,
-                    ref stagingPreviewRenderer, "StagingPreview", stagingOutlineColor);
+                    ref stagingPreviewRenderer, "StagingPreview",
+                    stagingOutlineColor);
         }
     }
 
@@ -162,9 +163,18 @@ public class GeofenceDrawer : MonoBehaviour
         Debug.Log("Staging zone finalized. Starting mission planning.");
 
         if (sectorManager != null)
-            sectorManager.SetGeofenceAndSplit(GeofenceGeoCorners, StagingGeoCorners);
+            sectorManager.SetGeofenceAndSplit(
+                GeofenceGeoCorners, StagingGeoCorners);
         else
             Debug.LogError("SectorManager not found!");
+
+        // Store geofence for re-runs
+        RunManager rm = FindObjectOfType<RunManager>();
+        if (rm != null)
+            rm.StoreGeofence(GeofenceGeoCorners, StagingGeoCorners);
+        else
+            Debug.LogWarning("RunManager not found — " +
+                "re-run feature will not work.");
     }
 
     void DrawZoneMesh(Vector3[] corners, double3[] geoCorners,
@@ -183,12 +193,12 @@ public class GeofenceDrawer : MonoBehaviour
 
         quad = new GameObject(name);
 
-        // Parent to CesiumGeoreference so anchor works correctly
         if (cesiumRoot != null)
             quad.transform.SetParent(cesiumRoot);
 
         CesiumGlobeAnchor anchor = quad.AddComponent<CesiumGlobeAnchor>();
-        anchor.longitudeLatitudeHeight = new double3(centerLng, centerLat, 5);
+        anchor.longitudeLatitudeHeight =
+            new double3(centerLng, centerLat, 5);
         anchor.adjustOrientationForGlobeWhenMoving = true;
 
         GeofenceRenderer gr = quad.AddComponent<GeofenceRenderer>();
@@ -223,8 +233,8 @@ public class GeofenceDrawer : MonoBehaviour
                 .TransformUnityPositionToEarthCenteredEarthFixed(unityPos);
             result[i] = CesiumWgs84Ellipsoid
                 .EarthCenteredEarthFixedToLongitudeLatitudeHeight(ecef);
-            Debug.Log($"Corner {i}: Lon={result[i].x:F6}, " +
-                $"Lat={result[i].y:F6}");
+            Debug.Log($"Corner {i}: " +
+                $"Lon={result[i].x:F6}, Lat={result[i].y:F6}");
         }
         return result;
     }
@@ -252,12 +262,18 @@ public class GeofenceDrawer : MonoBehaviour
 
         foreach (var n in new[] {
             "GeofencePreview", "GeofenceMesh",
-            "StagingPreview", "StagingMesh" })
+            "StagingPreview",  "StagingMesh" })
         {
             GameObject obj = GameObject.Find(n);
             if (obj != null) Destroy(obj);
         }
 
-        Debug.Log("Reset complete.");
+        Debug.Log("Geofence reset complete.");
+    }
+
+    // Call this to re-run without redrawing geofence
+    public void ResetDronesOnly()
+    {
+        Debug.Log("Drones reset. Geofence preserved.");
     }
 }
