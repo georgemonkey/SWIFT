@@ -27,7 +27,6 @@ public class GeofenceSectorManager : MonoBehaviour
         public int droneId;
         public Color color;
 
-        // Area in square feet
         public float AreaSqFt()
         {
             double latDiff = maxLat - minLat;
@@ -37,7 +36,7 @@ public class GeofenceSectorManager : MonoBehaviour
                 * System.Math.Cos((minLat + maxLat) / 2.0
                     * System.Math.PI / 180.0);
             double sqM = latM * lngM;
-            return (float)(sqM * 10.7639); // m² to ft²
+            return (float)(sqM * 10.7639);
         }
     }
 
@@ -45,22 +44,34 @@ public class GeofenceSectorManager : MonoBehaviour
     private List<GameObject> sectorVisuals = new List<GameObject>();
     private double3[] stagingGeoCorners;
 
+    // ?? Public bounds — read by GridOverlay after geofence is drawn ??
+    public double minLat { get; private set; }
+    public double maxLat { get; private set; }
+    public double minLng { get; private set; }
+    public double maxLng { get; private set; }
+
     public void SetGeofenceAndSplit(double3[] geoCorners, double3[] stagingCorners)
     {
         stagingGeoCorners = stagingCorners;
 
-        double minLat = double.MaxValue, maxLat = double.MinValue;
-        double minLng = double.MaxValue, maxLng = double.MinValue;
+        double bMinLat = double.MaxValue, bMaxLat = double.MinValue;
+        double bMinLng = double.MaxValue, bMaxLng = double.MinValue;
 
         foreach (var c in geoCorners)
         {
-            if (c.y < minLat) minLat = c.y;
-            if (c.y > maxLat) maxLat = c.y;
-            if (c.x < minLng) minLng = c.x;
-            if (c.x > maxLng) maxLng = c.x;
+            if (c.y < bMinLat) bMinLat = c.y;
+            if (c.y > bMaxLat) bMaxLat = c.y;
+            if (c.x < bMinLng) bMinLng = c.x;
+            if (c.x > bMaxLng) bMaxLng = c.x;
         }
 
-        SplitIntoSectors(minLat, maxLat, minLng, maxLng, Variables.droneCount);
+        // Store as public properties for GridOverlay
+        minLat = bMinLat;
+        maxLat = bMaxLat;
+        minLng = bMinLng;
+        maxLng = bMaxLng;
+
+        SplitIntoSectors(bMinLat, bMaxLat, bMinLng, bMaxLng, Variables.droneCount);
     }
 
     void SplitIntoSectors(double minLat, double maxLat,
@@ -101,7 +112,6 @@ public class GeofenceSectorManager : MonoBehaviour
             }
         }
 
-        // Compute total area for stats
         float totalSqFt = 0f;
         foreach (var s in sectors) totalSqFt += s.AreaSqFt();
         Variables.totalAreaCoveredSqFt = totalSqFt;
@@ -153,21 +163,20 @@ public class GeofenceSectorManager : MonoBehaviour
             return positions;
         }
 
-        double minLat = double.MaxValue, maxLat = double.MinValue;
-        double minLng = double.MaxValue, maxLng = double.MinValue;
+        double sMinLat = double.MaxValue, sMaxLat = double.MinValue;
+        double sMinLng = double.MaxValue, sMaxLng = double.MinValue;
 
         foreach (var c in stagingGeoCorners)
         {
-            if (c.y < minLat) minLat = c.y;
-            if (c.y > maxLat) maxLat = c.y;
-            if (c.x < minLng) minLng = c.x;
-            if (c.x > maxLng) maxLng = c.x;
+            if (c.y < sMinLat) sMinLat = c.y;
+            if (c.y > sMaxLat) sMaxLat = c.y;
+            if (c.x < sMinLng) sMinLng = c.x;
+            if (c.x > sMaxLng) sMaxLng = c.x;
         }
 
-        double stagingWidth = maxLng - minLng;
-        double stagingHeight = maxLat - minLat;
+        double stagingWidth = sMaxLng - sMinLng;
+        double stagingHeight = sMaxLat - sMinLat;
 
-        // Grid layout: evenly space drones inside staging zone
         GetBestGrid(n, stagingWidth, stagingHeight,
             out int cols, out int rows);
 
@@ -182,9 +191,8 @@ public class GeofenceSectorManager : MonoBehaviour
         {
             for (int c = 0; c < cols && id < n; c++)
             {
-                // Center of each cell
-                double lng = minLng + (c + 0.5) * cellW;
-                double lat = minLat + (r + 0.5) * cellH;
+                double lng = sMinLng + (c + 0.5) * cellW;
+                double lat = sMinLat + (r + 0.5) * cellH;
                 positions.Add((lng, lat));
                 Debug.Log($"Staging pos {id}: Lat={lat:F6}, Lng={lng:F6}");
                 id++;

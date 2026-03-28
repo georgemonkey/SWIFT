@@ -1,4 +1,5 @@
 using UnityEngine;
+using System.Collections.Generic;
 
 public class RunManager : MonoBehaviour
 {
@@ -27,6 +28,13 @@ public class RunManager : MonoBehaviour
 
         if (runActive)
             CheckRunComplete();
+
+        // Update metrics overlay every frame during run
+        if (runActive)
+        {
+            MetricsOverlay metrics = FindObjectOfType<MetricsOverlay>();
+            if (metrics != null) metrics.UpdateMetrics();
+        }
     }
 
     public void StoreGeofence(
@@ -54,13 +62,31 @@ public class RunManager : MonoBehaviour
         runActive = true;
         runStartTime = Time.realtimeSinceStartup;
 
+        // Reset grid and metrics before spawning
+        GridOverlay grid = FindObjectOfType<GridOverlay>();
+        if (grid != null) grid.ResetGrid();
+
+        MetricsOverlay metrics = FindObjectOfType<MetricsOverlay>();
+        if (metrics != null) metrics.StopTracking();
+
+        // Clear existing drones
         var existing = droneSpawner.GetDrones();
         foreach (var d in existing)
             if (d != null) Destroy(d);
 
+        // Spawn new drones
         sectorManager.SetGeofenceAndSplit(
             storedGeofenceCorners,
             storedStagingCorners);
+
+        // Initialize grid and metrics after drones spawned
+        if (grid != null)
+            grid.Initialize(Variables.searchPattern);
+
+        // Get active drone controllers for metrics
+        List<DroneController> activeDrones = GetActiveDroneControllers();
+        if (metrics != null)
+            metrics.Initialize(activeDrones, Variables.searchPattern);
 
         int trialNum = isWarmupRun ? 0 : dataExporter.GetTrialCount() + 1;
         Debug.Log(
@@ -95,6 +121,10 @@ public class RunManager : MonoBehaviour
         {
             runActive = false;
             float elapsed = Time.realtimeSinceStartup - runStartTime;
+
+            // Stop metrics tracking
+            MetricsOverlay metrics = FindObjectOfType<MetricsOverlay>();
+            if (metrics != null) metrics.StopTracking();
 
             if (isWarmupRun)
             {
@@ -135,6 +165,26 @@ public class RunManager : MonoBehaviour
                     missionUI.OnRunComplete(data);
             }
         }
+    }
+
+    // ?????????????????????????????????????????????????????????????
+    // HELPERS
+    // ?????????????????????????????????????????????????????????????
+
+    private List<DroneController> GetActiveDroneControllers()
+    {
+        var list = new List<DroneController>();
+        var drones = droneSpawner?.GetDrones();
+        if (drones == null) return list;
+
+        foreach (var d in drones)
+        {
+            if (d == null) continue;
+            DroneController dc = d.GetComponent<DroneController>();
+            if (dc != null) list.Add(dc);
+        }
+
+        return list;
     }
 
     public void SetTimeScale(float scale)
